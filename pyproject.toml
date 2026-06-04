@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kinc-usb-monitor"
+version = "1.0.0"
+description = "Fast USB device monitor for Windows using SetupAPI"
+readme = "README.md"
+requires-python = ">=3.7"
+license = {text = "MIT"}
+authors = [
+    {name = "KINC", email = "kinc7775@gmail.com"}
+]
+keywords = ["usb", "monitor", "windows", "setupapi", "device"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Monitoring",
+]
+
+dependencies = [
+    "plyer>=2.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "black>=22.0",
+    "flake8>=4.0",
+    "mypy>=0.990",
+]
+
+[project.urls]
+Homepage = "https://github.com/KINC/kinc-usb-monitor"
+Documentation = "https://github.com/KINC/kinc-usb-monitor#readme"
+Repository = "https://github.com/KINC/kinc-usb-monitor.git"
+"Bug Tracker" = "https://github.com/KINC/kinc-usb-monitor/issues"
+
+[project.scripts]
+kinc-usb-monitor = "setupapi_usb_monitor:main"
+
+[tool.setuptools]
+packages = ["."]
+
+[tool.black]
+line-length = 100
+target-version = ["py37"]
+
+[tool.mypy]
+python_version = "3.7"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false

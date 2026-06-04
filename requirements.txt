@@ -1,0 +1,10 @@
+# Core dependencies
+plyer>=2.1.0
+
+# Development dependencies (optional)
+# pytest>=7.0
+# black>=22.0
+# flake8>=4.0
+# mypy>=0.990
+# nuitka>=1.0  ; For building standalone executables
+# pyinstaller>=5.0  ; Alternative for building standalone executables
