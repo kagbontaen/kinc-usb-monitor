@@ -22,6 +22,8 @@ import ctypes
 import time
 import os
 import sys
+from datetime import datetime
+import shutil
 
 from ctypes import wintypes
 try:
@@ -29,6 +31,12 @@ try:
     plyer_available = True
 except ImportError:
     plyer_available = False
+
+try:
+    from tabulate import tabulate
+    tabulate_available = True
+except ImportError:
+    tabulate_available = False
 
 
 def _resource_path(relative_path):
@@ -104,6 +112,39 @@ class SetupAPIUSBMonitor:
         self.setupapi.SetupDiDestroyDeviceInfoList.restype = wintypes.BOOL
         self.setupapi.SetupDiDestroyDeviceInfoList.argtypes = [wintypes.HANDLE]
 
+    def _print_table_header(self):
+        if tabulate_available:
+            # header printed once for clarity using fancy_grid
+            name_w, hwid_w = self._col_sizes()
+            hdr = ["Time", "Event", "Name", "HWID"]
+            print(tabulate([hdr], headers=hdr, tablefmt="fancy_grid"))
+        else:
+            print(f"{"Time":<19} " + f"{"Event":<10} " + f"{"Name":<40} " + " HWID")
+            print("-" * 19 + " " + "-" * 10 + " " + "-" * 40 + " " + "-" * 10)
+
+    def _print_table_row(self, event, name, hwid):
+        ts = datetime.now().strftime("%H:%M:%S")
+        if tabulate_available:
+            name_w, hwid_w = self._col_sizes()
+            # truncate columns to fit terminal width
+            name_disp = (name[: name_w - 1] + "…") if len(name) > name_w else name.ljust(name_w)
+            hwid_disp = (hwid[: hwid_w - 1] + "…") if len(hwid) > hwid_w else hwid.ljust(hwid_w)
+            print(tabulate([[ts, event, name_disp, hwid_disp]], tablefmt="fancy_grid"))
+        else:
+            print(f"{ts:<8} {event:<10} {name:<40} {hwid}")
+
+    def _col_sizes(self):
+        try:
+            w = shutil.get_terminal_size().columns
+        except Exception:
+            w = 80
+        # Reserve space for time (8 chars like HH:MM:SS) and event (10) plus fancy_grid borders (~14 chars for 4 columns)
+        reserved = 8 + 10 + 14
+        avail = max(20, w - reserved)
+        name_w = max(10, int(avail * 0.5))
+        hwid_w = max(10, avail - name_w)
+        return name_w, hwid_w
+
     def _get_devices(self):
         devices = {}
 
@@ -163,8 +204,10 @@ class SetupAPIUSBMonitor:
 
         return devices
 
-    def start(self, on_connect=None, on_disconnect=None, interval=0.1):
+    def start(self, on_connect=None, on_disconnect=None, interval=0.1, table=False):
         print("[*] SetupAPI USB monitor started")
+        if table:
+            self._print_table_header()
         if plyer_available:
             notification.notify(
                 title="USB Monitor Started",
@@ -178,10 +221,17 @@ class SetupAPIUSBMonitor:
         if len(prev) > 0:
             i = 0
             while i < 1:
-                print(f"[*] Initial devices: {len(prev)}")
+                if table:
+                    # print a short initial devices notice in the table
+                    self._print_table_row("INITIAL", f"{len(prev)} devices", "")
+                else:
+                    print(f"[*] Initial devices: {len(prev)}")
 
                 for hwid, name in prev.items():
-                    print(f"[+] CONNECTED {name} | {hwid}")
+                    if table:
+                        self._print_table_row("CONNECTED", name, hwid)
+                    else:
+                        print(f"[+] CONNECTED {name} | {hwid}")
                     i += 1
 
         while not self.stop_event:
@@ -192,7 +242,10 @@ class SetupAPIUSBMonitor:
             # CONNECTED
             for hwid, name in curr.items():
                 if hwid not in prev:
-                    print(f"[+] CONNECTED: {name} | {hwid}")
+                    if table:
+                        self._print_table_row("CONNECTED", name, hwid)
+                    else:
+                        print(f"[+] CONNECTED: {name} | {hwid}")
                     if plyer_available:
                         notification.notify(
                             title="USB Device Connected",
@@ -207,7 +260,10 @@ class SetupAPIUSBMonitor:
             # DISCONNECTED
             for hwid, name in prev.items():
                 if hwid not in curr:
-                    print(f"[-] DISCONNECTED: {name} | {hwid}")
+                    if table:
+                        self._print_table_row("DISCONNECT", name, hwid)
+                    else:
+                        print(f"[-] DISCONNECTED: {name} | {hwid}")
                     if plyer_available:
                         notification.notify(
                             title="USB Device Disconnected",
@@ -232,7 +288,7 @@ if __name__ == "__main__":
     monitor = SetupAPIUSBMonitor()
 
     try:
-        monitor.start()
+        monitor.start(table=True if tabulate_available else False)
     except KeyboardInterrupt:
         monitor.stop()
         print("\n[✓] Stopped")
