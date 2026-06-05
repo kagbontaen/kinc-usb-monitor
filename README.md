@@ -1,5 +1,5 @@
 # KINC USB Monitor
-
+<img width="981" height="516" alt="Screenshot 2026-06-05 144723" src="https://github.com/user-attachments/assets/4dcbda3a-ea35-43c7-9ed3-cf7c1f0a9c27" />
 A fast USB device monitor for Windows using the SetupAPI (no WMI, no libusb dependencies).
 
 ## Features
@@ -51,14 +51,19 @@ Press `Ctrl+C` to stop monitoring.
 
 ### Using Nuitka
 
-```bash
+```cmd
 python -m nuitka --standalone --onefile --windows-icon-from-ico=src/icon.ico --include-data-file=src/icon.ico=src/icon.ico --windows-product-name="KINC USB Monitor" --product-version=1.0.0.0 --file-version=1.0.0.0 setupapi_usb_monitor.py
 ```
 
 ### Using PyInstaller
 
-```bash
+```cmd
 pyinstaller --onefile --icon=src/icon.ico --name="KINC USB Monitor" setupapi_usb_monitor.py
+```
+### Running the Standalone Version
+
+```cmd
+start /min setupapi_usb_monitor.exe
 ```
 
 ## License
