@@ -38,6 +38,14 @@ try:
 except ImportError:
     tabulate_available = False
 
+# optional tray support (persistent tray icon)
+try:
+    from tray_icon import TrayNotifier
+    tray_available = True
+except Exception:
+    TrayNotifier = None
+    tray_available = False
+
 
 def _resource_path(relative_path):
     """Return the path to a resource, handling frozen bundles."""
@@ -112,34 +120,61 @@ class SetupAPIUSBMonitor:
         self.setupapi.SetupDiDestroyDeviceInfoList.restype = wintypes.BOOL
         self.setupapi.SetupDiDestroyDeviceInfoList.argtypes = [wintypes.HANDLE]
 
+        # tray notifier will be set when start() is called if available
+        self.tray = None
+
+    def _notify(self, title, message, timeout=5):
+        """Send a notification either via a running tray notifier or plyer."""
+        if getattr(self, "tray", None) is not None:
+            try:
+                self.tray.notify(title=title, message=message, app_icon=icon_path if icon_path else None, timeout=timeout)
+                return
+            except Exception:
+                pass
+
+        if plyer_available:
+            try:
+                notification.notify(
+                    title=title,
+                    message=message,
+                    app_icon=icon_path if icon_path else None,
+                    app_name=app,
+                    timeout=timeout,
+                )
+            except Exception:
+                pass
+
     def _print_table_header(self):
-        if tabulate_available:
-            # header printed once for clarity using fancy_grid
-            name_w, hwid_w = self._col_sizes()
-            hdr = ["Time", "Event", "Name", "HWID"]
-            print(tabulate([hdr], headers=hdr, tablefmt="fancy_grid"))
-        else:
-            print(f"{"Time":<19} " + f"{"Event":<10} " + f"{"Name":<40} " + " HWID")
-            print("-" * 19 + " " + "-" * 10 + " " + "-" * 40 + " " + "-" * 10)
+        # Print a single flowing table header using fixed column widths so
+        # subsequent rows can be printed aligned without re-drawing boxes.
+        name_w, hwid_w = self._col_sizes()
+        time_w = 8
+        event_w = 10
+
+        fmt = f"{{:<{time_w}}} {{:<{event_w}}} {{:<{name_w}}} {{:<{hwid_w}}}"
+        print(fmt.format("Time", "Event", "Name", "HWID"))
+        print("-" * time_w + " " + "-" * event_w + " " + "-" * name_w + " " + "-" * hwid_w)
 
     def _print_table_row(self, event, name, hwid):
         ts = datetime.now().strftime("%H:%M:%S")
-        if tabulate_available:
-            name_w, hwid_w = self._col_sizes()
-            # truncate columns to fit terminal width
-            name_disp = (name[: name_w - 1] + "…") if len(name) > name_w else name.ljust(name_w)
-            hwid_disp = (hwid[: hwid_w - 1] + "…") if len(hwid) > hwid_w else hwid.ljust(hwid_w)
-            print(tabulate([[ts, event, name_disp, hwid_disp]], tablefmt="fancy_grid"))
-        else:
-            print(f"{ts:<8} {event:<10} {name:<40} {hwid}")
+        name_w, hwid_w = self._col_sizes()
+        time_w = 8
+        event_w = 10
+
+        # truncate columns to fit terminal width and pad to column widths
+        name_disp = (name[: name_w - 1] + "…") if len(name) > name_w else name.ljust(name_w)
+        hwid_disp = (hwid[: hwid_w - 1] + "…") if len(hwid) > hwid_w else hwid.ljust(hwid_w)
+
+        fmt = f"{{:<{time_w}}} {{:<{event_w}}} {{:<{name_w}}} {{:<{hwid_w}}}"
+        print(fmt.format(ts, event, name_disp, hwid_disp))
 
     def _col_sizes(self):
         try:
             w = shutil.get_terminal_size().columns
         except Exception:
             w = 80
-        # Reserve space for time (8 chars like HH:MM:SS) and event (10) plus fancy_grid borders (~14 chars for 4 columns)
-        reserved = 8 + 10 + 14
+        # Reserve space for time (8 chars like HH:MM:SS) and event (10) plus simple borders (~8 chars for 4 columns)
+        reserved = 8 + 10 + 8
         avail = max(20, w - reserved)
         name_w = max(10, int(avail * 0.5))
         hwid_w = max(10, avail - name_w)
@@ -206,17 +241,23 @@ class SetupAPIUSBMonitor:
 
     def start(self, on_connect=None, on_disconnect=None, interval=0.1, table=False):
         print("[*] SetupAPI USB monitor started")
+        
+        # start tray icon if available so user gets a persistent icon
+        if tray_available and TrayNotifier is not None:
+            try:
+                print("[*] Starting tray icon")
+                self.tray = TrayNotifier(icon_path=icon_path, app_name=app, on_quit=self.stop)
+                self.tray.start()
+            except Exception:
+                print("[!] Tray icon failed to start")
+                self.tray = None
+
+        # send startup notification
+        self._notify(title="USB Monitor Started", message="Monitoring USB devices connected...", timeout=5)
+        
         if table:
             self._print_table_header()
-        if plyer_available:
-            notification.notify(
-                title="USB Monitor Started",
-                message="Monitoring USB devices connected...",
-                app_icon=icon_path if icon_path else None,
-                app_name=app,
-                timeout=5,
-            )
-
+        
         prev = self._get_devices()
         if len(prev) > 0:
             i = 0
@@ -247,13 +288,7 @@ class SetupAPIUSBMonitor:
                     else:
                         print(f"[+] CONNECTED: {name} | {hwid}")
                     if plyer_available:
-                        notification.notify(
-                            title="USB Device Connected",
-                            message=f"{name}\n{hwid}",
-                            app_icon=icon_path if icon_path else None,
-                            app_name=app,
-                            timeout=5,
-                        )
+                        self._notify(title="USB Device Connected", message=f"{name}\n{hwid}", timeout=5)
                     if on_connect:
                         on_connect(hwid, name)
 
@@ -265,13 +300,7 @@ class SetupAPIUSBMonitor:
                     else:
                         print(f"[-] DISCONNECTED: {name} | {hwid}")
                     if plyer_available:
-                        notification.notify(
-                            title="USB Device Disconnected",
-                            message=f"{name}\n{hwid}",
-                            app_icon=icon_path if icon_path else None,
-                            app_name=app,
-                            timeout=5,
-                        )
+                        self._notify(title="USB Device Disconnected", message=f"{name}\n{hwid}", timeout=5)
                     if on_disconnect:
                         on_disconnect(hwid, name)
 
@@ -292,11 +321,8 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         monitor.stop()
         print("\n[✓] Stopped")
-        if plyer_available:
-            notification.notify(
-                title="USB Monitor Stopped",
-                message="Stopped monitoring USB devices.",
-                app_icon=icon_path if icon_path else None,
-                app_name=app,
-                timeout=5,
-            )
+        # use tray notifier if present
+        try:
+            monitor._notify(title="USB Monitor Stopped", message="Stopped monitoring USB devices.", timeout=5)
+        except Exception:
+            pass

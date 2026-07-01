@@ -52,7 +52,7 @@ Press `Ctrl+C` to stop monitoring.
 ### Using Nuitka
 
 ```cmd
-python -m nuitka --standalone --onefile --windows-icon-from-ico=src/icon.ico --include-data-file=src/icon.ico=src/icon.ico --windows-product-name="KINC USB Monitor" --product-version=1.0.0.0 --file-version=1.0.0.0 setupapi_usb_monitor.py
+python -m nuitka --standalone --onefile --windows-icon-from-ico=icon.ico --include-data-file=icon.ico=icon.ico --windows-product-name="KINC USB Monitor" --product-version=1.1.0.0 --file-version=1.1.0.0 setupapi_usb_monitor.py
 ```
 
 ### Using PyInstaller

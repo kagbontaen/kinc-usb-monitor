@@ -139,4 +139,4 @@ Thumbs.db
 *.so
 build/
 dist/
-setupapi_usb_monitor.dist/src/icon.ico
+setupapi_usb_monitor.dist/
